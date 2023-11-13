@@ -34,7 +34,7 @@ jobs:
           # Cloudflare Account ID
           cloudflare-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Cloudflare API Token
-          cloudflare-api-token: ${{ secrets.CLOUDFLARE_PAGES_API_KEY }}
+          cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_KEY }}
           # The directory of static assets to upload (default: `dist`)
           directory: dist
           # GitHub Token
