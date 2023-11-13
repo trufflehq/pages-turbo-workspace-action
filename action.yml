@@ -91,7 +91,7 @@ runs:
         curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${{ inputs.cloudflare-account-id }}/pages/projects" \
           -H "Authorization: Bearer ${{ inputs.cloudflare-api-token }}" \
           -H "Content-Type:application/json" \
-          --data '{"name":"${{ inputs.project-name }}", "production-branch":"${{ inputs.production-branch }}"}'
+          --data '{"name":"${{ inputs.project-name }}", "production_branch":"${{ inputs.production-branch }}"}'
 
     - name: Publish to Cloudflare Pages
       uses: cloudflare/pages-action@v1
