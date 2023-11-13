@@ -1,0 +1,51 @@
+name: Deploy Example Website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pages-branch:
+        description: |
+          Which Pages branch to deploy to.
+          Set this to the default branch (usually `main`) if you want to deploy to production.
+          And `preview` for anything else'
+        required: true
+        type: choice
+        default: 'main'
+        options:
+          - 'main'
+          - 'preview'
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        uses: ./
+        # uses: trufflehq/pages-turbo-workspace-action@v1
+        with:
+          # The script to build your site (joins with `yarn workspace $workspace_name`) (default: `build`)
+          build_script: build
+          # Cloudflare Account ID
+          cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Cloudflare API Token
+          cloudflare_api_token: ${{ secrets.CLOUDFLARE_PAGES_API_KEY }}
+          # The directory of static assets to upload (default: `dist`)
+          directory: dist
+          # GitHub Token
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: The script to run before building your site
+          prebuild_script: yarn build
+          # Optional: The branch to deploy to production
+          production_branch: ${{ github.event.repository.default_branch }}
+          # The name of the Cloudflare Pages project
+          project_name: ptw-example
+          # The name of the yarn workspace being deployed
+          workspace_name: web
+          # The branch to deploy to in the cloudflare project
+          deploy-to-branch: ${{ github.event.inputs.pages-branch || github.ref_name }}

@@ -1,0 +1,25 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"globalDependencies": [
+		"yarn.lock",
+		"**/tsconfig.json"
+	],
+	"pipeline": {
+		"build": {
+			"dependsOn": [
+				"^build"
+			],
+			"inputs": [
+				"src/**/*.ts"
+			],
+			"outputs": [
+				"dist/**"
+			],
+			"cache": true,
+			"outputMode": "errors-only"
+		},
+		"dev": {
+			"persistent": true
+		}
+	}
+}

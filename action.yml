@@ -1,0 +1,111 @@
+name: "Publish to Cloudflare Pages"
+description: "Publish a Pages project"
+inputs:
+  build-script:
+    description: "The script to build your site (default: `build`) (joins with `yarn workspace $workspace-name`)"
+    required: false
+    default: "build"
+  cloudflare-account-id:
+    description: "Cloudflare Account ID"
+    required: true
+  cloudflare-api-token:
+    description: "Cloudflare API Token"
+    required: true
+  directory:
+    description: "The directory of static assets to upload (default: `dist`)"
+    required: true
+    default: "dist"
+  github-token:
+    description: "GitHub Token"
+    required: true
+  prebuild-script:
+    description: "The script to run before building your site"
+    required: false
+  production-branch:
+    description: "The branch to deploy to production"
+    required: true
+    default: "master"
+  project-name:
+    description: "The name of the Cloudflare Pages project"
+    required: true
+  workspace-name:
+    description: "The name of the yarn workspace being deployed"
+    required: true
+  deploy-to-branch:
+    description: "The Cloudflare Pages branch to deploy to"
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Install node.js v18
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - name: Install dependencies
+      uses: trufflehq/truffle-packages/actions/yarn@main
+
+    - name: Get project directory
+      id: get-project-directory
+      shell: bash
+      run: |
+        set -ex
+
+        dir=$(yarn workspaces list --json | jq -r 'select(.name == "${{ inputs.workspace-name }}") | .location')
+        echo "Resolved project directory: $dir"
+        echo "dir=$dir" >> $GITHUB_OUTPUT
+
+    - name: Prebuild script
+      shell: bash
+      if: ${{ inputs.prebuild-script }}
+      run: ${{ inputs.prebuild-script }}
+
+    - name: Turbo prune
+      shell: bash
+      run: yarn turbo prune --scope=${{ inputs.workspace-name }}
+
+    - name: Build script
+      shell: bash
+      if: ${{ inputs.build-script }}
+      run: yarn turbo run ${{ inputs.build-script }} --filter=${{ inputs.workspace-name }}
+
+    - name: Check if Cloudflare Pages Project exists
+      shell: bash
+      id: check-project
+      run: |
+        set -ex
+        echo "Checking if Cloudflare Pages Project exists"
+
+        check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/${{ inputs.cloudflare-account-id }}/pages/projects/${{ inputs.project-name }}" \
+          -H "Authorization: Bearer ${{ inputs.cloudflare-api-token }}" \
+          -H "Content-Type:application/json" | jq -r '.success')
+        echo "result=$check" >> $GITHUB_OUTPUT
+
+    - name: Create Cloudflare Pages Project (if it doesn't exist)
+      shell: bash
+      if: steps.check-project.outputs.result != 'true'
+      run: |
+        set -ex
+        echo "Creating Cloudflare Pages Project exists"
+
+        curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${{ inputs.cloudflare-account-id }}/pages/projects" \
+          -H "Authorization: Bearer ${{ inputs.cloudflare-api-token }}" \
+          -H "Content-Type:application/json" \
+          --data '{"name":"${{ inputs.project-name }}", "production-branch":"${{ inputs.production-branch }}"}'
+
+    - name: Publish to Cloudflare Pages
+      uses: cloudflare/pages-action@v1
+      with:
+        apiToken: ${{ inputs.cloudflare-api-token }}
+        accountId: ${{ inputs.cloudflare-account-id }}
+        projectName: ${{ inputs.project-name }}
+        directory: dist
+        # Optional: Enable this if you want to have GitHub Deployments triggered
+        gitHubToken: ${{ inputs.github-token }}
+        # Optional: Change the working directory
+        workingDirectory: ${{ steps.get-project-directory.outputs.dir }}
+        # Optional: Change the Wrangler version, allows you to point to a specific version or a tag such as `beta`
+        wranglerVersion: "3"
+        # Optional: Switch what branch you are publishing to.
+        # By default this will be the branch which triggered this workflow
+        branch: ${{ inputs.deploy-to-branch || inputs.production-branch }}
