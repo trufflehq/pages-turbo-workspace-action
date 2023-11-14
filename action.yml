@@ -93,19 +93,113 @@ runs:
           -H "Content-Type:application/json" \
           --data '{"name":"${{ inputs.project-name }}", "production_branch":"${{ inputs.production-branch }}"}'
 
-    - name: Publish to Cloudflare Pages
-      uses: cloudflare/pages-action@v1
+    - name: Fetch Cloudflare Pages Project
+      shell: bash
+      id: get-project
+      run: |
+        set -ex
+        check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/${{ inputs.cloudflare-account-id }}/pages/projects/${{ inputs.project-name }}" \
+          -H "Authorization: Bearer ${{ inputs.cloudflare-api-token }}" \
+          -H "Content-Type:application/json")
+        echo "result=$check" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Deployment
+      uses: actions/github-script@v4
+      id: create_github_deployment
+      env:
+        PAGES_BRANCH: ${{ inputs.deploy-to-branch || inputs.production-branch }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
       with:
-        apiToken: ${{ inputs.cloudflare-api-token }}
-        accountId: ${{ inputs.cloudflare-account-id }}
-        projectName: ${{ inputs.project-name }}
-        directory: dist
-        # Optional: Enable this if you want to have GitHub Deployments triggered
-        gitHubToken: ${{ inputs.github-token }}
-        # Optional: Change the working directory
-        workingDirectory: ${{ steps.get-project-directory.outputs.dir }}
-        # Optional: Change the Wrangler version, allows you to point to a specific version or a tag such as `beta`
-        wranglerVersion: "3"
-        # Optional: Switch what branch you are publishing to.
-        # By default this will be the branch which triggered this workflow
-        branch: ${{ inputs.deploy-to-branch || inputs.production-branch }}
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const githubBranch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+          const deployment = await github.repos.createDeployment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: githubBranch || context.ref,
+            auto_merge: false,
+            description: "Cloudflare Pages",
+            required_contexts: [],
+            environment: `${process.env.PROJECT_NAME} (${process.env.PAGES_BRANCH})`,
+            production_environment: process.env.PAGES_BRANCH === process.env.PRODUCTION_BRANCH,
+          });
+          console.dir(deployment);
+          
+          if (deployment.status === 201) {
+            core.setOutput('id', deployment.data.id);
+            return deployment.data;
+          } else {
+            throw new Error(`Failed to create deployment: ${deployment.status}`);
+          }
+
+    - name: Deploy
+      shell: bash
+      env:
+        PAGES_PROJECT_NAME: ${{ inputs.project-name }}
+        PAGES_BRANCH: ${{ inputs.deploy-to-branch || inputs.production-branch }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-token }}  
+      run: |
+        npx wrangler@3 pages deploy . \
+        --project-name="$PAGES_PROJECT_NAME" \
+        --branch="$PAGES_BRANCH"
+
+    - name: Get Latest Deployment ID
+      shell: bash
+      id: get_deployment
+      env:
+        PAGES_PROJECT_NAME: ${{ inputs.project-name }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-token }}
+      run: |
+        deployment=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT_NAME/deployments" \
+          -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+          -H "Content-Type:application/json" | jq -r '.result[0]')
+        echo "id=$(echo $deployment | jq -r .id)" >> $GITHUB_OUTPUT
+        echo "url=$(echo $deployment | jq -r .url)" >> $GITHUB_OUTPUT
+      
+
+    - name: Create GitHub Deployment Status
+      uses: actions/github-script@v4
+      env:
+        PAGES_BRANCH: ${{ inputs.deploy-to-branch || inputs.production-branch }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-token }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const { CLOUDFLARE_ACCOUNT_ID, PAGES_PROJECT_NAME } = process.env;
+          let deploymentId = "${{ steps.get_deployment.outputs.id }}";
+          let environmentUrl = "${{ steps.get_deployment.outputs.url }}";
+
+          const deploymentStatus = await github.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: "${{ steps.create_github_deployment.outputs.id }}",
+            state: 'success',
+            log_url: `https://dash.cloudflare.com/${CLOUDFLARE_ACCOUNT_ID}/pages/view/${PAGES_PROJECT_NAME}/${deploymentId}`,
+            description: 'Cloudflare Pages',
+            environment_url: environmentUrl,
+            environment: `${process.env.PROJECT_NAME} (${process.env.PAGES_BRANCH})`,
+          });
+          console.dir(deploymentStatus);
+
+    # - name: Publish to Cloudflare Pages
+    #   uses: cloudflare/pages-action@v1
+    #   with:
+    #     apiToken: ${{ inputs.cloudflare-api-token }}
+    #     accountId: ${{ inputs.cloudflare-account-id }}
+    #     projectName: ${{ inputs.project-name }}
+    #     directory: dist
+    #     # Optional: Enable this if you want to have GitHub Deployments triggered
+    #     gitHubToken: ${{ inputs.github-token }}
+    #     # Optional: Change the working directory
+    #     workingDirectory: ${{ steps.get-project-directory.outputs.dir }}
+    #     # Optional: Change the Wrangler version, allows you to point to a specific version or a tag such as `beta`
+    #     wranglerVersion: "3"
+    #     # Optional: Switch what branch you are publishing to.
+    #     # By default this will be the branch which triggered this workflow
+    #     branch: ${{ inputs.deploy-to-branch || inputs.production-branch }}
