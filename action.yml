@@ -177,20 +177,3 @@ runs:
             environment_url: environmentUrl,
             environment: `${process.env.PROJECT_NAME} (${process.env.PAGES_BRANCH})`,
           });
-
-    # - name: Publish to Cloudflare Pages
-    #   uses: cloudflare/pages-action@v1
-    #   with:
-    #     apiToken: ${{ inputs.cloudflare-api-token }}
-    #     accountId: ${{ inputs.cloudflare-account-id }}
-    #     projectName: ${{ inputs.project-name }}
-    #     directory: dist
-    #     # Optional: Enable this if you want to have GitHub Deployments triggered
-    #     gitHubToken: ${{ inputs.github-token }}
-    #     # Optional: Change the working directory
-    #     workingDirectory: ${{ steps.get-project-directory.outputs.dir }}
-    #     # Optional: Change the Wrangler version, allows you to point to a specific version or a tag such as `beta`
-    #     wranglerVersion: "3"
-    #     # Optional: Switch what branch you are publishing to.
-    #     # By default this will be the branch which triggered this workflow
-    #     branch: ${{ inputs.deploy-to-branch || inputs.production-branch }}
