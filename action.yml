@@ -114,7 +114,6 @@ runs:
             environment: `${process.env.PROJECT_NAME} (${process.env.PAGES_BRANCH})`,
             production_environment: process.env.PAGES_BRANCH === process.env.PRODUCTION_BRANCH,
           });
-          console.dir(deployment);
           
           if (deployment.status === 201) {
             core.setOutput('id', deployment.data.id);
@@ -130,8 +129,11 @@ runs:
         PAGES_BRANCH: ${{ inputs.deploy-to-branch || inputs.production-branch }}
         CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-token }}  
+        WORKING_DIRECTORY: ${{ steps.get-project-directory.outputs.dir }}
+        DIRECTORY: ${{ inputs.directory }}
       run: |
-        npx wrangler@3 pages deploy . \
+        cd $WORKING_DIRECTORY 
+        npx wrangler@3 pages deploy "$DIRECTORY" \
         --project-name="$PAGES_PROJECT_NAME" \
         --branch="$PAGES_BRANCH"
 
@@ -175,7 +177,6 @@ runs:
             environment_url: environmentUrl,
             environment: `${process.env.PROJECT_NAME} (${process.env.PAGES_BRANCH})`,
           });
-          console.dir(deploymentStatus);
 
     # - name: Publish to Cloudflare Pages
     #   uses: cloudflare/pages-action@v1
