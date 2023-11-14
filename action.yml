@@ -93,16 +93,6 @@ runs:
           -H "Content-Type:application/json" \
           --data '{"name":"${{ inputs.project-name }}", "production_branch":"${{ inputs.production-branch }}"}'
 
-    - name: Fetch Cloudflare Pages Project
-      shell: bash
-      id: get-project
-      run: |
-        set -ex
-        check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/${{ inputs.cloudflare-account-id }}/pages/projects/${{ inputs.project-name }}" \
-          -H "Authorization: Bearer ${{ inputs.cloudflare-api-token }}" \
-          -H "Content-Type:application/json")
-        echo "result=$check" >> $GITHUB_OUTPUT
-
     - name: Create GitHub Deployment
       uses: actions/github-script@v4
       id: create_github_deployment
